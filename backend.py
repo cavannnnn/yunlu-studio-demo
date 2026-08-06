@@ -10,17 +10,20 @@ from __future__ import annotations
 
 import json
 import os
+import csv
+import io
 import secrets
 import sqlite3
 import time
 import uuid
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -230,6 +233,92 @@ class SaleInput(BaseModel):
     period: str = "2024-08"
 
 
+class ChatInput(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    context: str = "童装产品全流程"
+
+
+def openai_text(instructions: str, prompt: str) -> tuple[str | None, str]:
+    """Use OpenAI when configured; keep the customer demo usable offline."""
+    if not os.getenv("OPENAI_API_KEY"):
+        return None, "本地演示数据"
+    try:
+        from openai import OpenAI
+        response = OpenAI().responses.create(
+            model=os.getenv("OPENAI_MODEL", "gpt-5.6"),
+            instructions=instructions,
+            input=prompt,
+        )
+        return response.output_text.strip(), f"OpenAI {os.getenv('OPENAI_MODEL', 'gpt-5.6')}"
+    except Exception as exc:
+        log_event(None, "openai_fallback", {"error": str(exc)[:300]})
+        return None, "本地演示数据（OpenAI 调用失败后回退）"
+
+
+def report_payload(keyword: str, ai_summary: str | None = None, source: str = "本地演示数据") -> dict[str, Any]:
+    return {
+        "keyword": keyword,
+        "title": "2024 秋冬轻户外童装市场洞察报告",
+        "executive_summary": ai_summary or "轻量、跨场景和触感功能化成为核心购买理由。家长更偏好能从通勤、校园自然切换到公园活动的单品。",
+        "hot_categories": ["轻户外卫衣 +28%", "软壳马甲 +22%", "针织套装 +19%"],
+        "silhouette_trends": ["宽松短款", "可拆卸风帽", "活动型袖窿"],
+        "color_trends": ["奶油白", "电光蓝", "鼠尾草绿"],
+        "material_trends": ["40D 防泼水棉感", "轻量针织", "亲肤网眼里布"],
+        "craft_heat": ["撞色结构线", "反光织带", "立体功能口袋"],
+        "competitors": [
+            {"brand": "Mini Rodini", "focus": "轻户外胶囊系列", "growth": "+22%"},
+            {"brand": "Bobo Choses", "focus": "自然色套装", "growth": "+18%"},
+            {"brand": "Konges Sløjd", "focus": "防风软壳", "growth": "+15%"},
+        ],
+        "design_recommendation": "主推电光蓝与奶油白撞色，采用轻量防泼水面料，保留柔软袖口并增加可拆卸风帽和反光安全细节。",
+        "confidence": 0.86,
+        "source": source,
+        "generated_at": now(),
+    }
+
+
+def markdown_report(report: dict[str, Any]) -> str:
+    sections = [
+        f"# {report['title']}", f"检索主题：{report['keyword']}", f"生成时间：{report['generated_at']}",
+        "## 执行摘要", report["executive_summary"],
+        "## 热门品类", *[f"- {x}" for x in report["hot_categories"]],
+        "## 廓形趋势", *[f"- {x}" for x in report["silhouette_trends"]],
+        "## 色彩趋势", *[f"- {x}" for x in report["color_trends"]],
+        "## 面料趋势", *[f"- {x}" for x in report["material_trends"]],
+        "## 工艺热度", *[f"- {x}" for x in report["craft_heat"]],
+        "## 设计建议", report["design_recommendation"], f"数据来源：{report['source']}",
+    ]
+    return "\n\n".join(sections) + "\n"
+
+
+def pdf_report_bytes(report: dict[str, Any]) -> bytes:
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=44, leftMargin=44, topMargin=48, bottomMargin=45)
+    styles = getSampleStyleSheet()
+    title = ParagraphStyle("YunluTitle", parent=styles["Title"], fontName="STSong-Light", fontSize=23, leading=31, textColor=colors.HexColor("#24252b"), alignment=TA_CENTER)
+    h2 = ParagraphStyle("YunluH2", parent=styles["Heading2"], fontName="STSong-Light", fontSize=14, leading=21, textColor=colors.HexColor("#6257d1"), spaceBefore=15)
+    body = ParagraphStyle("YunluBody", parent=styles["BodyText"], fontName="STSong-Light", fontSize=10, leading=18, textColor=colors.HexColor("#55575f"))
+    story = [Paragraph(report["title"], title), Spacer(1, 8), Paragraph(f"云麓 Studio · {report['keyword']} · 置信度 {int(report['confidence']*100)}%", body), Spacer(1, 18)]
+    story += [Paragraph("执行摘要", h2), Paragraph(report["executive_summary"], body)]
+    rows = [["热门品类", "廓形", "色彩", "面料"], ["<br/>".join(report["hot_categories"]), "<br/>".join(report["silhouette_trends"]), "<br/>".join(report["color_trends"]), "<br/>".join(report["material_trends"])]]
+    table = Table([[Paragraph(cell, body) for cell in row] for row in rows], colWidths=[120]*4, hAlign="LEFT")
+    table.setStyle(TableStyle([("BACKGROUND", (0,0), (-1,0), colors.HexColor("#eeedff")), ("GRID", (0,0), (-1,-1), .4, colors.HexColor("#dedee6")), ("VALIGN", (0,0), (-1,-1), "TOP"), ("LEFTPADDING", (0,0), (-1,-1), 9), ("RIGHTPADDING", (0,0), (-1,-1), 9), ("TOPPADDING", (0,0), (-1,-1), 9), ("BOTTOMPADDING", (0,0), (-1,-1), 9)]))
+    story += [Spacer(1, 14), table, Paragraph("竞品动向", h2)]
+    for item in report["competitors"]:
+        story.append(Paragraph(f"{item['brand']} · {item['focus']} · {item['growth']}", body))
+    story += [Paragraph("给设计的建议", h2), Paragraph(report["design_recommendation"], body), Spacer(1, 18), Paragraph(f"数据来源：{report['source']} | 生成时间：{report['generated_at']}", body)]
+    doc.build(story)
+    return buffer.getvalue()
+
+
 @app.on_event("startup")
 def startup() -> None:
     init_db()
@@ -314,15 +403,27 @@ def resume(product_id: str) -> dict[str, Any]:
 def agent_output(agent: str, product: dict[str, Any], payload: AgentInput) -> tuple[dict[str, Any], float]:
     keyword = payload.keyword or "轻户外童装 / 3-6岁 / 秋冬"
     if agent == "agent1":
-        return ({"keyword": keyword, "hot_categories": ["轻户外卫衣", "软壳马甲", "针织套装"], "silhouette_trends": ["宽松短款", "可拆卸风帽"], "color_trends": ["奶油白", "电光蓝", "鼠尾草绿"], "material_trends": ["防泼水棉感", "轻量针织"], "craft_heat": ["撞色结构线", "反光织带"], "competitors": ["Mini Rodini", "Bobo Choses"], "source": "公开趋势模拟数据 + LLM 总结"}, 1.2)
+        ai_summary, source = openai_text("你是童装市场研究员。只输出一句中文执行摘要，关注趋势、家长购买理由和设计机会。", keyword)
+        return (report_payload(keyword, ai_summary, source), 1.2)
     if agent == "agent2":
-        return ({"designs": ["editorial-01.jpg", "editorial-02.jpg", "kids-fashion.jpg", "fabric.jpg"], "prompt": payload.prompt or "柔软、轻机能、适合 3-6 岁儿童", "feasibility": [88, 85, 82, 79], "estimated_cost": [86, 95, 104, 113]}, 0.6)
+        prompt = payload.prompt or "柔软、轻机能、适合 3-6 岁儿童"
+        ai_summary, source = openai_text("你是童装设计总监。为客户演示生成一句设计解释，指出功能、面料与穿着场景。", prompt)
+        return ({"prompt": prompt, "designs": [
+            {"id": "D01", "title": "电光蓝探索卫衣", "mode": "穿着", "image": "editorial-01.jpg", "detail": "可拆卸风帽 / 反光织带 / 活动袖窿"},
+            {"id": "D02", "title": "奶油拼接轻机能", "mode": "平铺", "image": "editorial-02.jpg", "detail": "撞色结构线 / 立体口袋 / 柔软罗纹"},
+            {"id": "D03", "title": "城市漫游样衣", "mode": "3D 数字样衣", "image": "digital-sample-review.png", "detail": "数字面料 / 尺寸联动 / 视图同步"},
+            {"id": "D04", "title": "版型细节与纸样", "mode": "细节", "image": "fabric.jpg", "detail": "前后片 / 袖片 / 1cm 缝份"},
+        ], "feasibility": [88, 85, 92, 90], "estimated_cost": [86, 95, 104, 113], "ai_explanation": ai_summary or "以轻量防泼水面料承载电光蓝撞色，让功能细节成为日常穿着的一部分。", "source": source}, 0.6)
     if agent == "agent3":
         return ({"mode": payload.mode, "digital_sample": "digital-sample-review.png", "linked_views": ["try_on", "3d", "2d_pattern"], "annotations": ["领深 -0.8 cm", "胸围活动量 +2.4 cm", "袖长 -1.5 cm"], "confidence": 0.92}, 2.4 if payload.mode == "fast" else 7.5)
     if agent == "agent4":
         return ({"template": product["category"], "sizes": ["90", "100", "110", "120"], "pieces": ["前片", "后片", "袖片", "罗纹"], "seam_allowance_cm": 1, "calibration_mm": 100, "pdf": "pattern-preview.pdf", "pdf_url": "/assets/pattern-preview.pdf", "production_note": "试制版：完成实体试制与版师复核后再投入生产"}, 3.0)
     if agent == "agent5":
-        return ({"copy": {"xiaohongshu": "孩子的秋天，应该轻一点。柔软的针织和一点刚好的功能，让一件衣服从公园穿到晚餐。", "douyin": "轻一点，跑远一点。", "detail_page": "轻户外针织外套，亲肤、防泼水、活动量友好。"}, "posters": ["01-从灵感到成衣.png", "02-AI设计工作台.png", "03-数字样衣评审.png"], "videos": ["15s_mock_task", "30s_mock_task", "60s_mock_task"]}, 0.8)
+        copy = {"xiaohongshu": "孩子的秋天，应该轻一点。柔软的针织和一点刚好的功能，让一件衣服从公园穿到晚餐。\n\n#云麓童装 #轻户外童装 #秋冬穿搭", "douyin": "轻一点，跑远一点。可拆卸风帽、反光织带和防泼水面料，陪孩子把秋天穿得更远。", "detail_page": "轻户外针织外套，亲肤、防泼水、活动量友好。支持 90-120 多尺码，适合城市通勤与周末户外。"}
+        ai_copy, source = openai_text("你是童装品牌内容总监。用中文生成适合小红书、抖音和商品详情页的短文案。", "产品：奶油云朵轻户外卫衣；功能：防泼水、轻量针织、可拆卸风帽；语气：简洁高级。")
+        if ai_copy:
+            copy["xiaohongshu"] = ai_copy
+        return ({"copy": copy, "posters": ["01-从灵感到成衣.png", "02-AI设计工作台.png", "03-数字样衣评审.png"], "videos": [{"duration":"15s", "storyboard":["面料特写","穿着跑动","功能细节"]}, {"duration":"30s", "storyboard":["趋势开场","3D 到真人试穿","购买理由"]}, {"duration":"60s", "storyboard":["设计过程","样衣评审","品牌收束"]}], "source": source}, 0.8)
     if agent == "agent6":
         return ({"target_audience": ["3-6岁儿童家长", "重视舒适与户外活动的城市家庭"], "pricing": "建议零售价 ¥169-199", "channels": ["小红书种草", "抖音短视频", "详情页转化"], "cadence": ["预热 3 天", "首发 7 天", "复购 14 天"]}, 1.1)
     if agent == "agent7":
@@ -410,6 +511,73 @@ def reports(product_id: str) -> dict[str, Any]:
     return {"market": query("SELECT * FROM market_reports WHERE product_id=? ORDER BY created_at DESC", (product_id,)), "marketing": query("SELECT * FROM marketing_contents WHERE product_id=? ORDER BY created_at DESC", (product_id,)), "sales": query("SELECT * FROM sales_records WHERE product_id=?", (product_id,))}
 
 
+@app.post("/api/products/{product_id}/market-report")
+def generate_market_report(product_id: str, payload: AgentInput | None = None) -> dict[str, Any]:
+    payload = payload or AgentInput(keyword="轻户外童装 / 3-6岁 / 秋冬")
+    result = run_agent(product_id, "agent1", payload)
+    return {"report": result["output"], "run_id": result["run_id"], "export": {"pdf": f"/api/products/{product_id}/market-report/export?format=pdf", "md": f"/api/products/{product_id}/market-report/export?format=md", "csv": f"/api/products/{product_id}/market-report/export?format=csv"}}
+
+
+@app.get("/api/products/{product_id}/market-report/export")
+def export_market_report(product_id: str, format: str = "pdf") -> Response:
+    product_or_404(product_id)
+    row = one("SELECT * FROM market_reports WHERE product_id=? ORDER BY created_at DESC", (product_id,))
+    if not row:
+        generated = generate_market_report(product_id)
+        report = generated["report"]
+    else:
+        report = json_load(row["report_json"])
+        if not isinstance(report, dict) or "title" not in report:
+            report = report_payload(row.get("keyword", "轻户外童装 / 3-6岁 / 秋冬"), source=row.get("source", "本地演示数据"))
+    if format == "pdf":
+        return Response(pdf_report_bytes(report), media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=yunlu-market-report.pdf"})
+    if format == "md":
+        return Response(markdown_report(report).encode("utf-8"), media_type="text/markdown; charset=utf-8", headers={"Content-Disposition": "attachment; filename=yunlu-market-report.md"})
+    if format == "csv":
+        stream = io.StringIO(); writer = csv.writer(stream); writer.writerow(["section", "value"])
+        for section in ("hot_categories", "silhouette_trends", "color_trends", "material_trends", "craft_heat"):
+            for value in report.get(section, []): writer.writerow([section, value])
+        return Response(stream.getvalue().encode("utf-8-sig"), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=yunlu-market-report.csv"})
+    raise HTTPException(400, "format must be pdf, md or csv")
+
+
+@app.post("/api/products/{product_id}/design-generate")
+def design_generate(product_id: str, payload: AgentInput | None = None) -> dict[str, Any]:
+    result = run_agent(product_id, "agent2", payload or AgentInput(prompt="柔软亲肤，加入高饱和电光蓝和更多可生产功能"))
+    return {"design": result["output"], "run_id": result["run_id"], "export": f"/api/products/{product_id}/design-export"}
+
+
+@app.get("/api/products/{product_id}/design-export")
+def export_design(product_id: str) -> Response:
+    product_or_404(product_id)
+    runs = query("SELECT output_json FROM agent_runs WHERE product_id=? AND agent='agent2' ORDER BY created_at DESC LIMIT 1", (product_id,))
+    design = json_load(runs[0]["output_json"]) if runs else agent_output("agent2", product_or_404(product_id), AgentInput())[0]
+    payload = json.dumps(design, ensure_ascii=False, indent=2).encode("utf-8")
+    return Response(payload, media_type="application/json", headers={"Content-Disposition": "attachment; filename=yunlu-ai-design-pack.json"})
+
+
+@app.post("/api/products/{product_id}/content-generate")
+def content_generate(product_id: str) -> dict[str, Any]:
+    result = run_agent(product_id, "agent5", AgentInput())
+    return {"content": result["output"], "run_id": result["run_id"], "export": f"/api/products/{product_id}/marketing-export"}
+
+
+@app.get("/api/products/{product_id}/marketing-export")
+def export_marketing(product_id: str) -> Response:
+    product_or_404(product_id)
+    rows = query("SELECT content_json FROM marketing_contents WHERE product_id=? ORDER BY created_at DESC LIMIT 1", (product_id,))
+    content = json_load(rows[0]["content_json"]) if rows else agent_output("agent5", product_or_404(product_id), AgentInput())[0]
+    payload = json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
+    return Response(payload, media_type="application/json", headers={"Content-Disposition": "attachment; filename=yunlu-marketing-pack.json"})
+
+
+@app.post("/api/products/{product_id}/chat")
+def chat(product_id: str, payload: ChatInput) -> dict[str, Any]:
+    product = product_or_404(product_id)
+    text, source = openai_text("你是云麓 Studio 的童装产品顾问。请给出可执行、简洁的中文回答。", f"产品：{product['name']}。用户问题：{payload.message}")
+    return {"answer": text or "基于当前款式，建议先确认电光蓝撞色、轻量防泼水面料和 1cm 缝份，再进入真人试穿评审。", "source": source}
+
+
 @app.post("/api/products/{product_id}/sales")
 def add_sale(product_id: str, payload: SaleInput) -> dict[str, Any]:
     product_or_404(product_id)
@@ -455,7 +623,8 @@ if DIST.exists():
     def compiled_or_demo_asset(asset_path: str):
         compiled = DIST / "assets" / asset_path
         demo_asset = ROOT / "public" / "assets" / asset_path
-        path = compiled if compiled.exists() else demo_asset
+        poster_asset = ROOT / "outputs" / "posters" / asset_path
+        path = compiled if compiled.exists() else (demo_asset if demo_asset.exists() else poster_asset)
         if not path.exists() or not path.is_file():
             raise HTTPException(404, "asset not found")
         return FileResponse(path)
