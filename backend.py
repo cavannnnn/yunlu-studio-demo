@@ -320,7 +320,7 @@ def agent_output(agent: str, product: dict[str, Any], payload: AgentInput) -> tu
     if agent == "agent3":
         return ({"mode": payload.mode, "digital_sample": "digital-sample-review.png", "linked_views": ["try_on", "3d", "2d_pattern"], "annotations": ["领深 -0.8 cm", "胸围活动量 +2.4 cm", "袖长 -1.5 cm"], "confidence": 0.92}, 2.4 if payload.mode == "fast" else 7.5)
     if agent == "agent4":
-        return ({"template": product["category"], "sizes": ["90", "100", "110", "120"], "pieces": ["前片", "后片", "袖片", "罗纹"], "seam_allowance_cm": 1, "calibration_mm": 100, "pdf": "pattern-preview.pdf"}, 3.0)
+        return ({"template": product["category"], "sizes": ["90", "100", "110", "120"], "pieces": ["前片", "后片", "袖片", "罗纹"], "seam_allowance_cm": 1, "calibration_mm": 100, "pdf": "pattern-preview.pdf", "pdf_url": "/assets/pattern-preview.pdf", "production_note": "试制版：完成实体试制与版师复核后再投入生产"}, 3.0)
     if agent == "agent5":
         return ({"copy": {"xiaohongshu": "孩子的秋天，应该轻一点。柔软的针织和一点刚好的功能，让一件衣服从公园穿到晚餐。", "douyin": "轻一点，跑远一点。", "detail_page": "轻户外针织外套，亲肤、防泼水、活动量友好。"}, "posters": ["01-从灵感到成衣.png", "02-AI设计工作台.png", "03-数字样衣评审.png"], "videos": ["15s_mock_task", "30s_mock_task", "60s_mock_task"]}, 0.8)
     if agent == "agent6":
