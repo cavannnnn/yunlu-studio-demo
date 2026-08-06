@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowUpRight, Bell, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleHelp,
   Download, FileText, FolderOpen, Gauge, Image as ImageIcon, Layers3, LayoutGrid,
@@ -35,6 +35,11 @@ function App() {
   const [showCommand, setShowCommand] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [backendConnected, setBackendConnected] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/health').then((response) => response.ok && setBackendConnected(true)).catch(() => setBackendConnected(false));
+  }, []);
 
   const notify = (message: string, tone: Toast['tone'] = 'success') => {
     setToast({ message, tone });
@@ -46,10 +51,25 @@ function App() {
     pattern: '纸板版型', marketing: '营销内容', billing: '账单与会员',
   } as Record<View, string>)[active], [active]);
 
-  const runGeneration = () => {
+  const runGeneration = async () => {
     setIsRunning(true);
     notify('AI 正在生成 4 个设计方向…', 'info');
-    window.setTimeout(() => { setIsRunning(false); setActive('design'); notify('已生成 4 个设计方向'); }, 1300);
+    try {
+      const response = await fetch('/api/products/product_demo/demo-run', { method: 'POST' });
+      if (response.ok) {
+        setBackendConnected(true);
+        setActive('preview');
+        notify('全流程已完成，当前停在人工打样断点');
+      } else {
+        setActive('design');
+        notify('已生成 4 个设计方向');
+      }
+    } catch {
+      setActive('design');
+      notify('已生成 4 个设计方向');
+    } finally {
+      setIsRunning(false);
+    }
   };
 
   return (
@@ -87,7 +107,7 @@ function App() {
         <header className="topbar">
           <div className="mobile-brand"><button className="icon-button" onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={19} /></button><span className="brand-mark small">云</span><b>云麓</b></div>
           <div className="breadcrumbs"><span>云麓童装</span><ChevronRight size={14} /><b>{pageTitle}</b></div>
-          <div className="top-actions"><button className="search-button" onClick={() => setShowCommand(true)}><Search size={16} /><span>搜索</span><kbd>⌘ K</kbd></button><button className="icon-button notification" onClick={() => notify('目前没有新的通知', 'info')} aria-label="通知"><Bell size={18} /><i /></button><button className="top-avatar" onClick={() => setProfileOpen(!profileOpen)}>林</button></div>
+          <div className="top-actions"><span className={`backend-chip ${backendConnected ? 'connected' : ''}`}><i />{backendConnected ? '演示后端已连接' : '前端演示模式'}</span><button className="search-button" onClick={() => setShowCommand(true)}><Search size={16} /><span>搜索</span><kbd>⌘ K</kbd></button><button className="icon-button notification" onClick={() => notify('目前没有新的通知', 'info')} aria-label="通知"><Bell size={18} /><i /></button><button className="top-avatar" onClick={() => setProfileOpen(!profileOpen)}>林</button></div>
           {profileOpen && <div className="profile-popover"><b>林小满</b><span>云麓童装 · 主理人</span><button onClick={() => notify('账号设置暂未连接后端', 'info')}>账号设置</button><button onClick={() => notify('演示模式已保持登录', 'info')}>退出登录</button></div>}
         </header>
 

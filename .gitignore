@@ -7,3 +7,7 @@ output-*.png
 vite.config.js
 vite.config.d.ts
 _tmp_*
+runtime_storage/
+work/backend_deps/
+__pycache__/
+tmp/

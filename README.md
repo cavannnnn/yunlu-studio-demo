@@ -11,6 +11,19 @@ npm run dev
 
 打开 `http://127.0.0.1:5173/`。
 
+## 全流程演示后端
+
+本项目现在包含一个可本地演示的 FastAPI 后端：SQLite 持久化业务数据，本地目录模拟对象存储，Agent 使用确定性 Mock Adapter，所有 API 契约都预留了未来接入 PostgreSQL、Redis、OSS/COS 和真实 AI 服务的位置。
+
+```bash
+python3 -m pip install -r requirements.txt
+python3 backend.py
+```
+
+后端地址为 `http://127.0.0.1:8000`，API 文档为 `http://127.0.0.1:8000/docs`。前端开发服务仍使用 `npm run dev`，生产构建由后端直接托管 `dist/`。
+
+核心演示接口包括：`/api/products/{id}/demo-run` 一键跑 Agent1-8、`/api/products/{id}/sample-upload` 恢复人工打样断点、`/api/products/{id}/agents/{agent}` 独立调用单个 Agent、`/api/subscriptions/checkout` Mock 支付、`/api/data-lifecycle/run` 数据生命周期 dry-run。
+
 ## 已覆盖界面
 
 - 款式总览：进度状态、市场信号、最近款式、一键推进

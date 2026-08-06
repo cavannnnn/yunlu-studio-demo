@@ -74,6 +74,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 @media (max-width:1120px) { .design-visual { height:210px; } .design-card .design-visual img { height:100%; } }
 @media (max-width:520px) { .design-visual { height:160px; } .design-card .design-visual img { height:100%; } .render-specs span:last-child { display:none; } .render-badge { font-size:7px; } .function-status > div { grid-template-columns:1fr; } }
 
+.backend-chip { display:flex; align-items:center; gap:5px; height:27px; padding:0 8px; border-radius:20px; background:#f0f0f2; color:#9b9da4; font-size:9px; white-space:nowrap; }
+.backend-chip i { width:6px; height:6px; border-radius:50%; background:#b4b5bb; }
+.backend-chip.connected { color:#659d70; background:#eaf5ec; }
+.backend-chip.connected i { background:#6daf79; box-shadow:0 0 0 3px rgba(109,175,121,.12); }
+@media (max-width:520px) { .backend-chip { display:none; } }
+
 /* Unified digital sample review */
 .review-toolbar { display:flex; align-items:center; justify-content:space-between; gap:18px; margin-bottom:15px; }
 .review-sync { display:flex; align-items:center; gap:8px; }
