@@ -7,7 +7,7 @@ import {
   Check, Clock3, CreditCard, SlidersHorizontal, Target, Video, Zap,
 } from 'lucide-react';
 
-type View = 'overview' | 'insights' | 'design' | 'preview' | 'pattern' | 'marketing' | 'billing';
+type View = 'overview' | 'insights' | 'design' | 'preview' | 'pattern' | 'marketing' | 'strategy' | 'archive' | 'sales' | 'billing';
 type Toast = { message: string; tone?: 'success' | 'info' };
 
 const designImages = [
@@ -23,6 +23,9 @@ const navItems: { id: View; label: string; icon: typeof LayoutGrid; meta?: strin
   { id: 'design', label: 'AI 设计', icon: WandSparkles, meta: 'Agent 02' },
   { id: 'preview', label: '数字样衣评审', icon: Layers3, meta: 'Agent 03–04' },
   { id: 'marketing', label: '营销内容', icon: Sparkles, meta: 'Agent 05' },
+  { id: 'strategy', label: '营销策略', icon: Target, meta: 'Agent 06' },
+  { id: 'archive', label: '企业资料库', icon: FolderOpen, meta: 'Agent 07' },
+  { id: 'sales', label: '销售分析', icon: Gauge, meta: 'Agent 08' },
 ];
 
 function App() {
@@ -48,7 +51,7 @@ function App() {
 
   const pageTitle = useMemo(() => ({
     overview: '款式总览', insights: '市场洞察', design: 'AI 设计工作台', preview: '数字样衣评审',
-    pattern: '纸板版型', marketing: '营销内容', billing: '账单与会员',
+    pattern: '纸板版型', marketing: '营销内容', strategy: '营销策略', archive: '企业资料库', sales: '销售分析', billing: '账单与会员',
   } as Record<View, string>)[active], [active]);
 
   const runGeneration = async () => {
@@ -117,6 +120,9 @@ function App() {
           {active === 'design' && <DesignStudio selected={selectedDesign} setSelected={setSelectedDesign} prompt={prompt} setPrompt={setPrompt} notify={notify} isRunning={isRunning} />}
           {active === 'preview' && <Preview notify={notify} />}
           {active === 'marketing' && <Marketing notify={notify} />}
+          {active === 'strategy' && <Strategy notify={notify} />}
+          {active === 'archive' && <Archive notify={notify} />}
+          {active === 'sales' && <Sales notify={notify} />}
           {active === 'billing' && <Billing notify={notify} />}
         </div>
       </main>
@@ -170,12 +176,25 @@ function Marketing({ notify }: { notify: (m: string, t?: Toast['tone']) => void 
 
 function CopyIcon() { return <span className="copy-icon">↗</span>; }
 
+function Strategy({ notify }: { notify: (m: string, t?: Toast['tone']) => void }) {
+  return <><PageHeader eyebrow="AGENT 06 / GO-TO-MARKET STRATEGY" title="营销策略" copy="把一个好款，变成一场有节奏的新品发布。" action={<button className="button primary" onClick={() => notify('营销策略已生成并保存到企业资料库')}><Sparkles size={17} />生成策略方案</button>}><button className="quiet-button" onClick={() => notify('策略版本已导出', 'info')}><Download size={15} />导出方案</button></PageHeader><div className="agent-grid strategy-grid"><div className="panel strategy-hero"><span className="eyebrow">LAUNCH PLAN / 2024 AW</span><h2>让“轻户外”<br /><i>从一个卖点变成一套节奏。</i></h2><p>为「奶油云朵 · 轻户外卫衣」生成一份适合小微品牌执行的 21 天新品方案。</p><div className="strategy-kpis"><div><strong>21</strong><span>天发布节奏</span></div><div><strong>3</strong><span>个核心渠道</span></div><div><strong>¥169</strong><span>建议起售价</span></div></div></div><div className="panel channel-panel"><div className="panel-heading"><div><span className="eyebrow">CHANNEL MIX</span><h3>渠道策略</h3></div><Target size={17} color="#8174e8" /></div>{[['小红书','种草预热','D-7 至 D-1','内容 6 篇'],['抖音','穿着效果','D0 至 D+7','短视频 3 条'],['电商详情页','转化承接','D0 上线','卖点 5 个']].map(([channel,goal,timing,metric], i) => <div className="channel-row" key={channel}><span className={`channel-index c${i+1}`}>{i+1}</span><span><b>{channel}</b><small>{goal} · {timing}</small></span><strong>{metric}</strong></div>)}<button className="full-link" onClick={() => notify('已复制渠道执行清单', 'info')}>复制执行清单 <ArrowUpRight size={14} /></button></div><div className="panel cadence-panel"><div className="panel-heading"><div><span className="eyebrow">LAUNCH CADENCE</span><h3>三段式发布节奏</h3></div><Clock3 size={17} color="#9c9da5" /></div><div className="cadence"><div className="cadence-step done"><span>D-7</span><b>预热</b><small>面料故事与趋势内容</small></div><div className="cadence-step current"><span>D0</span><b>首发</b><small>穿着视频 + 限量首发</small></div><div className="cadence-step"><span>D+14</span><b>复购</b><small>用户反馈与颜色扩展</small></div></div></div></div></>;
+}
+
+function Archive({ notify }: { notify: (m: string, t?: Toast['tone']) => void }) {
+  const folders = [['设计版本','4 个版本','/assets/editorial-01.jpg'],['纸样与规格','3 个文件','/assets/digital-sample-review.png'],['营销素材','8 个素材','/assets/sample.jpg'],['市场报告','2 份报告','/assets/fabric.jpg']];
+  return <><PageHeader eyebrow="AGENT 07 / ENTERPRISE DATA HUB" title="企业资料库" copy="每一张图、每一个版本和每一次决策，都有自己的位置。" action={<button className="button primary" onClick={() => notify('资料库已完成自动归档')}><FolderOpen size={17} />自动归档</button>}><button className="quiet-button" onClick={() => notify('标签管理已打开', 'info')}><SlidersHorizontal size={15} />管理标签</button></PageHeader><div className="archive-toolbar"><div className="input-search"><Search size={16} /><input placeholder="搜索款号、面料、版本或标签" /><button><Search size={14} /></button></div><div className="tag-row"><span>2024 AW</span><span>轻户外</span><span>3-6岁</span></div></div><div className="archive-grid">{folders.map(([title,count,img]) => <button className="archive-folder panel" key={title} onClick={() => notify(`已打开${title}资料`, 'info')}><img src={img} alt="" /><div className="folder-tint" /><div className="folder-copy"><span className="eyebrow">YUNLU ARCHIVE</span><h3>{title}</h3><small>{count} · 最近更新 12 分钟前</small></div><ArrowUpRight size={18} /></button>)}</div><div className="panel archive-table"><div className="panel-heading"><div><span className="eyebrow">RECENT ASSETS</span><h3>最近归档</h3></div><button className="quiet-button" onClick={() => notify('已导出资料清单', 'info')}><Download size={14} />导出</button></div>{[['YL-24AW-021','数字样衣评审图','digital_review','今天 10:24'],['YL-24AW-021','纸样规格 V04','pattern_pdf','今天 10:18'],['YL-24AW-021','市场趋势报告','market_report','昨天 18:42']].map(([code,name,type,date]) => <div className="asset-row" key={name}><span className="asset-type">{type}</span><b>{name}</b><span>{code}</span><time>{date}</time><MoreHorizontal size={15} /></div>)}</div></>;
+}
+
+function Sales({ notify }: { notify: (m: string, t?: Toast['tone']) => void }) {
+  return <><PageHeader eyebrow="AGENT 08 / SALES INTELLIGENCE" title="销售分析" copy="看清哪一款在成为爆款，再把结果写回下一轮市场判断。" action={<button className="button primary" onClick={() => notify('销售数据已分析，结论已回流市场报告')}><Gauge size={17} />分析并回流 Agent1</button>}><button className="quiet-button" onClick={() => notify('销售 CSV 导入功能暂未连接', 'info')}><Upload size={15} />导入销售数据</button></PageHeader><div className="sales-hero panel"><div><span className="eyebrow">AUGUST / ALL CHANNELS</span><h2>轻户外系列正在被更多家庭选择。</h2><p>系统结合销量、内容互动和款式属性，识别出下一轮值得放大的设计方向。</p></div><div className="sales-total"><strong>¥18.6k</strong><span>销售额</span><b>↑ 28.4%</b></div></div><div className="sales-grid"><div className="panel sales-chart"><div className="panel-heading"><div><span className="eyebrow">WINNER SIGNALS</span><h3>爆款信号</h3></div><span className="confidence">回流已开启</span></div><div className="winner-row"><span className="winner-rank">01</span><span><b>电光蓝配色</b><small>互动率高于平均 42%</small></span><strong>↑ 42%</strong></div><div className="winner-row"><span className="winner-rank">02</span><span><b>轻量针织</b><small>加购率高于平均 31%</small></span><strong>↑ 31%</strong></div><div className="winner-row"><span className="winner-rank">03</span><span><b>可活动袖窿</b><small>退货率低于平均 18%</small></span><strong>↑ 18%</strong></div></div><div className="panel feedback-panel"><div className="panel-heading"><div><span className="eyebrow">FEEDBACK TO AGENT 01</span><h3>下一轮市场建议</h3></div><RotateCcw size={17} color="#8174e8" /></div><div className="feedback-box"><span className="feedback-plus">+</span><div><b>继续放大</b><p>高对比蓝色、轻量保暖、活动结构</p></div></div><div className="feedback-box minus"><span className="feedback-minus">−</span><div><b>减少投入</b><p>厚重填充、复杂装饰、难维护部件</p></div></div><button className="button dark" onClick={() => notify('已将销售反馈写回最新市场报告')}>写回 Agent1 数据源 <ArrowUpRight size={15} /></button></div></div></>;
+}
+
 function Billing({ notify }: { notify: (m: string, t?: Toast['tone']) => void }) {
   return <><PageHeader eyebrow="ACCOUNT / SUBSCRIPTION" title="账单与会员" copy="让创作持续发生，也让每一笔成本清晰可见。" action={<button className="button primary" onClick={() => notify('套餐升级流程暂未连接支付', 'info')}><Zap size={17} />升级会员</button>} /><div className="billing-hero"><div><span className="eyebrow">当前会员计划</span><h2>标准版 <i>·</i> Standard</h2><p>有效期至 2024 年 12 月 31 日 · Agent 01–04 无限使用</p></div><div className="billing-price"><strong>¥3,799</strong><span>/ 月</span></div></div><div className="billing-grid"><div className="panel billing-usage"><div className="panel-heading"><div><span className="eyebrow">AUGUST 2024</span><h3>本月用量</h3></div><button className="quiet-button" onClick={() => notify('用量报表已导出', 'info')}><Download size={15} />导出</button></div><div className="usage-metrics"><div><span>完成款式</span><b>12 <small>/ 50</small></b><i className="metric-progress"><em style={{ width: '24%' }} /></i></div><div><span>AI 设计轮次</span><b>38 <small>次</small></b><i className="metric-progress"><em style={{ width: '64%' }} /></i></div><div><span>营销素材</span><b>8 <small>款</small></b><i className="metric-progress"><em style={{ width: '32%' }} /></i></div></div></div><div className="panel invoices"><div className="panel-heading"><h3>最近账单</h3><button className="icon-button"><MoreHorizontal size={17} /></button></div>{[['2024.08.01','标准版会员月费','¥3,799','已支付'],['2024.07.12','营销内容 · 轻户外卫衣','¥20','已支付'],['2024.07.04','营销内容 · 城市漫游','¥20','已支付']].map(([date,name,price,status]) => <div className="invoice-row" key={date + name}><span>{date}</span><b>{name}</b><strong>{price}</strong><small><Check size={12} />{status}</small></div>)}</div></div></>;
 }
 
 function CommandPalette({ close, navigate }: { close: () => void; navigate: (view: View) => void }) {
-  const options: [View,string,string][] = [['overview','回到款式总览','⌘ 1'],['insights','打开市场洞察','⌘ 2'],['design','打开 AI 设计工作台','⌘ 3'],['preview','打开数字样衣评审','⌘ 4'],['marketing','打开营销内容','⌘ 5'],['billing','打开账单与会员','⌘ 6']];
+  const options: [View,string,string][] = [['overview','回到款式总览','⌘ 1'],['insights','打开市场洞察','⌘ 2'],['design','打开 AI 设计工作台','⌘ 3'],['preview','打开数字样衣评审','⌘ 4'],['marketing','打开营销内容','⌘ 5'],['strategy','打开营销策略','⌘ 6'],['archive','打开企业资料库','⌘ 7'],['sales','打开销售分析','⌘ 8'],['billing','打开账单与会员','⌘ 9']];
   return <div className="modal-backdrop" onMouseDown={close}><div className="command-palette" onMouseDown={(e) => e.stopPropagation()}><div className="command-search"><Search size={18} /><input autoFocus placeholder="搜索工作台…" /><kbd>ESC</kbd></div>{options.map(([view,label,key]) => <button key={view} onClick={() => navigate(view)}><span className="command-icon"><ArrowUpRight size={15} /></span><span>{label}</span><kbd>{key}</kbd></button>)}<div className="command-footer"><span>快速打开页面</span><span><kbd>↑↓</kbd>选择 <kbd>↵</kbd>确认</span></div></div></div>;
 }
 
