@@ -124,6 +124,7 @@ function App() {
         </header>
 
         <div className="page-content">
+          <AgentChat agent={pageTitle} placeholder={`告诉 AI 你想如何微调${pageTitle}`} notify={notify} />
           {active === 'overview' && <Overview onNavigate={setActive} onNew={() => setShowNew(true)} onRun={runGeneration} />}
           {active === 'insights' && <Insights notify={notify} onDesign={() => setActive('design')} />}
           {active === 'design' && <DesignStudio selected={selectedDesign} setSelected={setSelectedDesign} prompt={prompt} setPrompt={setPrompt} notify={notify} isRunning={isRunning} />}
@@ -145,6 +146,25 @@ function App() {
 
 function PageHeader({ eyebrow, title, copy, action, children }: { eyebrow: string; title: string; copy: string; action?: React.ReactNode; children?: React.ReactNode }) {
   return <div className="page-header"><div><span className="eyebrow">{eyebrow}</span><h1>{title}</h1><p>{copy}</p></div><div className="header-actions">{children}{action}</div></div>;
+}
+
+function AgentChat({ agent, placeholder, notify, onApplied }: { agent: string; placeholder: string; notify: (m: string, t?: Toast['tone']) => void; onApplied?: (text: string) => void }) {
+  const [message, setMessage] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const send = async (preset?: string) => {
+    const text = (preset || message).trim(); if (!text || busy) return;
+    setMessage(text); setBusy(true); setExpanded(true); setAnswer('');
+    try { const data = await api<any>('/products/product_demo/chat', { method: 'POST', body: JSON.stringify({ message: text, context: agent }) }); setAnswer(data.answer); notify(`${agent} 已完成一轮微调`); }
+    catch { setAnswer('建议已记录。你可以继续补充颜色、面料、尺寸或渠道目标，我会把它整理成下一轮执行参数。'); notify('AI 暂时离线，已保留本地演示回复', 'info'); }
+    finally { setBusy(false); }
+  };
+  return <section className={`agent-chat ${expanded ? 'is-expanded' : ''}`} aria-label={`${agent} AI 微调`}>
+    <div className="agent-chat-glow" />
+    <div className="agent-chat-head"><span className="ai-spark"><Sparkles size={14} /></span><div><b>{agent} · AI 微调</b><small>告诉我你想调整的方向</small></div><span className="ai-live"><i />在线</span><button className="icon-button" onClick={() => setExpanded(!expanded)} aria-label={expanded ? '收起 AI 微调' : '展开 AI 微调'}>{expanded ? <ChevronDown size={15}/> : <ArrowUpRight size={15}/>}</button></div>
+    <div className="agent-chat-body"><div className="agent-chat-input"><textarea value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(); }} placeholder={placeholder} rows={1}/><button className={`chat-send ${busy ? 'is-busy' : ''}`} onClick={() => send()} disabled={busy} aria-label="发送给 AI"><WandSparkles size={15}/>{busy ? <span className="chat-loader"><i/><i/><i/></span> : <span>发送</span>}</button></div><div className="chat-suggestions"><button onClick={() => send('把当前方案做得更轻、更易生产')}>更轻、更易生产</button><button onClick={() => send('增加一个更大胆的功能细节')}>强化功能</button><button onClick={() => send('给我一版更适合客户沟通的解释')}>客户沟通版</button></div>{busy && <div className="ai-progress"><span className="progress-orb"/><div><b>AI 正在分析上下文</b><small>读取当前 Agent 参数 · 生成可执行建议</small></div><span className="progress-line"><i/></span></div>}{answer && !busy && <div className="agent-answer"><span className="answer-icon"><Check size={13}/></span><p>{answer}</p><button onClick={() => { onApplied?.(answer); notify('已应用 AI 微调建议'); }}>应用建议</button></div>}</div>
+  </section>;
 }
 
 function Overview({ onNavigate, onNew, onRun }: { onNavigate: (view: View) => void; onNew: () => void; onRun: () => void }) {
