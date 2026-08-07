@@ -116,6 +116,7 @@ function App() {
       </aside>
 
       <main className="main-area">
+        {!sidebarOpen && <button className="icon-button sidebar-reopen" onClick={() => setSidebarOpen(true)} aria-label="展开侧边栏" title="展开侧边栏"><PanelLeftOpen size={18} /></button>}
         <header className="topbar">
           <div className="mobile-brand"><button className="icon-button" onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={19} /></button><span className="brand-mark small">云</span><b>云麓</b></div>
           <div className="breadcrumbs"><span>云麓童装</span><ChevronRight size={14} /><b>{pageTitle}</b></div>
